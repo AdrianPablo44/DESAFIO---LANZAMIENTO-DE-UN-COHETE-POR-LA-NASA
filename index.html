@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Despegue de un cohete experimental · Método de Euler</title>
+<style>
+:root{--paper:#eef2f5;--panel:#fbfcfd;--ink:#14233b;--mute:#5a6a80;--line:#c9d4de;--grid:#dde5ec;--euler:#b5179e;--heun:#d98e04;--rk4:#1f8a4c;--exact:#14233b;--sig:#0f6f86}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:28px 28px}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 18px 60px}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:700;line-height:1.2;margin:0 0 .5em}
+h1{font-size:clamp(1.7rem,4vw,2.5rem)}
+h2{font-size:1.4rem;margin-top:0}
+h3{font-size:1.05rem}
+header p{max-width:70ch;color:var(--mute);margin:.3em 0 0}
+section,.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:20px;margin-top:20px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:20px;align-items:start}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.eq{font-family:Georgia,serif;font-size:1.15rem;background:#fff;border-left:4px solid var(--sig);padding:10px 14px;margin:10px 0;overflow-x:auto;white-space:nowrap}
+.eq i{font-style:italic}
+form .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mute);gap:3px}
+input[type=number]{font:inherit;padding:7px 8px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}
+.opts{display:flex;flex-wrap:wrap;gap:18px;margin:16px 0 4px;align-items:center}
+.opts label{flex-direction:row;align-items:center;gap:7px;color:var(--ink);font-size:.95rem}
+button{font:inherit;font-weight:600;border:0;border-radius:6px;padding:9px 18px;cursor:pointer;background:var(--ink);color:#fff}
+button.alt{background:#fff;color:var(--ink);border:1px solid var(--ink)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--sig);outline-offset:2px}
+.warn{background:#fff4d6;border:1px solid #e2c15a;border-radius:6px;padding:8px 12px;margin-top:12px;display:none}
+.tw{overflow:auto;max-height:430px;border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
+th{position:sticky;top:0;background:var(--ink);color:#fff;font-weight:600;z-index:1}
+th.grp{text-align:center;border-left:1px solid #fff4}
+tbody tr:nth-child(even){background:#f3f6f9}
+td:first-child,th:first-child{text-align:left}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+canvas.ch{width:100%;height:300px;display:block;background:#fff;border:1px solid var(--line);border-radius:6px}
+.sim{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+#rk{width:230px;height:420px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.hud{min-width:220px;flex:1}
+.hud .big{font-family:Georgia,serif;font-size:2rem}
+.hud dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:10px 0}
+.hud dt{color:var(--mute)}.hud dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600}
+.ans h3{margin-top:1.1em}
+.ans p,.ans li{max-width:78ch}
+details{border-top:1px solid var(--line);padding:8px 0}
+summary{cursor:pointer;font-weight:600}
+.lg{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.note{color:var(--mute);font-size:.88rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Despegue de un cohete experimental, 1962</h1>
+  <p>Calcula la velocidad y la altura durante los primeros segundos del ascenso. Aproxima con el método de Euler, paso a paso, y compara con la solución analítica. Como ampliación, incluye los métodos de Heun y Runge-Kutta de cuarto orden (RK4).</p>
+</header>
+
+<h4>Nombre: Adrian Pablo Calizaya Aguilar</h4>
+<h4>Materia: Métodos numéricos DAT-242</h4>
+<h4>Docente: Lic. Brígida Carvajal</h4>
+<h4>Fecha: 12/11/2026</h4>
+<section>
+  <h2>Modelo matemático</h2>
+  <div class="eq"><i>m</i> · <i>dv/dt</i> = <i>T</i> − <i>m g</i> − <i>k v</i> &nbsp;&nbsp;&nbsp; <i>dy/dt</i> = <i>v</i></div>
+  <p><b>m</b> es la masa (kg), <b>T</b> el empuje constante (N), <b>g</b> la gravedad (m/s²), <b>k</b> el coeficiente de resistencia lineal del aire (kg/s), <b>v</b> la velocidad vertical y <b>y</b> la altura. Al dividir entre <i>m</i> queda una ecuación lineal: <i>v′ = a − b v</i>, con <i>a = T/m − g</i> y <i>b = k/m</i>.</p>
+  <div class="eq" id="eqSol"></div>
+</section>
+
+<section>
+  <h2>Parámetros</h2>
+  <form id="f" onsubmit="return false">
+    <div class="fields">
+      <label>Masa m (kg)<input id="m" type="number" step="any" value="100"></label>
+      <label>Empuje T (N)<input id="T" type="number" step="any" value="1500"></label>
+      <label>Resistencia k (kg/s)<input id="k" type="number" step="any" value="10"></label>
+      <label>Gravedad g (m/s²)<input id="g" type="number" step="any" value="9.81"></label>
+      <label>Velocidad inicial v₀ (m/s)<input id="v0" type="number" step="any" value="0"></label>
+      <label>Altura inicial y₀ (m)<input id="y0" type="number" step="any" value="0"></label>
+      <label>Tiempo final (s)<input id="tf" type="number" step="any" value="20"></label>
+      <label>Paso h (s)<input id="h" type="number" step="any" value="2"></label>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" checked disabled> Euler</label>
+      <label><input type="checkbox" id="mh" checked> Heun (ampliación)</label>
+      <label><input type="checkbox" id="mr" checked> Runge-Kutta 4 (ampliación)</label>
+      <button id="go">Simular</button>
+      <button class="alt" id="rs" type="button">Valores del enunciado</button>
+    </div>
+    <div class="warn" id="warn"></div>
+  </form>
+</section>
+
+<section>
+  <h2>Simulación del despegue</h2>
+  <div class="sim">
+    <canvas id="rk" width="230" height="420" aria-label="Animación del cohete"></canvas>
+    <div class="hud">
+      <div class="big" id="clock">t = 0,00 s</div>
+      <dl>
+        <dt>Altura exacta</dt><dd id="hy">—</dd>
+        <dt>Altura Euler</dt><dd id="hye">—</dd>
+        <dt>Velocidad exacta</dt><dd id="hv">—</dd>
+        <dt>Velocidad Euler</dt><dd id="hve">—</dd>
+      </dl>
+      <button id="play">Lanzar</button> <button class="alt" id="stop" type="button">Reiniciar</button>
+      <p class="note">El cohete sigue la solución exacta. El punto magenta marca la altura que calcula Euler con el paso elegido.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Gráficas comparativas</h2>
+  <p id="legend" class="note"></p>
+  <div class="charts">
+    <canvas class="ch" id="c1"></canvas>
+    <canvas class="ch" id="c2"></canvas>
+    <canvas class="ch" id="c3"></canvas>
+  </div>
+</section>
+
+<section>
+  <h2>Tabla de iteraciones</h2>
+  <p class="note">Euler: v<sub>n+1</sub> = v<sub>n</sub> + h·(a − b·v<sub>n</sub>) &nbsp;y&nbsp; y<sub>n+1</sub> = y<sub>n</sub> + h·v<sub>n</sub>. Los errores son valores absolutos respecto de la solución exacta.</p>
+  <div class="tw"><table id="tab"></table></div>
+</section>
+
+<section>
+  <h2>Efecto del tamaño de paso</h2>
+  <p class="note">Error absoluto en el tiempo final para distintos pasos h. Se muestran los tres métodos.</p>
+  <div class="tw"><table id="steps"></table></div>
+  <p id="just"></p>
+</section>
+
+<section class="ans">
+  <h2>Preguntas a responder</h2>
+  <div id="answers"></div>
+</section>
+
+<section class="ans">
+  <h2>Preguntas de reflexión</h2>
+  <h3>1. ¿Por qué era importante verificar los cálculos antes de enviar astronautas al espacio?</h3><p>Porque un error numérico pequeño al inicio se propaga y puede cambiar la trayectoria o el punto de regreso.</p>
+  <h3>2. ¿Qué riesgos existirían al utilizar un tamaño de paso demasiado grande?</h3><p>El error de truncamiento crece con h y la aproximación puede alejarse de la solución real.</p>
+  <h3>3. ¿Por qué una aproximación puede parecer razonable y aun así acumular errores importantes?</h3><p>Cada paso introduce un error local pequeño, pero el siguiente paso parte del valor ya erróneo. Los errores se acumulan, y la altura, que integra la velocidad, arrastra todo el error de v. Una curva puede verse correcta y estar desplazada por varios metros.</p>
+  <h3>4. ¿Qué variables reales del lanzamiento no fueron consideradas en nuestro modelo?</h3><p>La masa cambia al consumir combustible, el empuje no es constante, la densidad del aire disminuye con la altura, la resistencia es cuadrática en la velocidad, la gravedad varía con la altitud, y hay viento, inclinación de la trayectoria y rotación terrestre.</p>
+  <h3>5. ¿Por qué el cálculo de una trayectoria lunar requiere un modelo mucho más complejo?</h3><p>Intervienen las gravedades de la Tierra, la Luna y el Sol, trayectorias curvas en tres dimensiones, maniobras con cambios de masa y empuje, y ventanas de tiempo muy estrictas. Las ecuaciones forman sistemas no lineales sin solución analítica y exigen métodos numéricos de alto orden y mucha verificación.</p>
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmt=(x,d=4)=>Number(x).toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:false});
+const fe=x=>(x!==0&&Math.abs(x)<1e-4)?x.toExponential(2).replace('.',','):fmt(x,4);
+const COL={euler:'#b5179e',heun:'#d98e04',rk4:'#1f8a4c',exact:'#14233b'};
+const NAME={euler:'Euler',heun:'Heun',rk4:'RK4'};
+let P,R,redraw=[],anim={t:0,on:false,last:0};
+
+function getP(){
+  const p={};['m','T','k','g','v0','y0','tf','h'].forEach(i=>p[i]=parseFloat($(i).value));
+  if([...Object.values(p)].some(isNaN)){return {err:'Completa todos los parámetros con números.'}}
+  if(p.m<=0)return {err:'La masa debe ser mayor que cero.'};
+  if(p.k<0)return {err:'La resistencia k no puede ser negativa.'};
+  if(p.tf<=0||p.h<=0)return {err:'El tiempo final y el paso deben ser positivos.'};
+  if(p.h>p.tf)return {err:'El paso h no puede ser mayor que el tiempo final.'};
+  if(p.tf/p.h>5000)return {err:'Son demasiados pasos (máximo 5000). Aumenta h.'};
+  p.a=p.T/p.m-p.g;p.b=p.k/p.m;return p;
+}
+function exact(t,p){
+  if(p.b===0)return{v:p.v0+p.a*t,y:p.y0+p.v0*t+p.a*t*t/2};
+  const vl=p.a/p.b,e=Math.exp(-p.b*t);
+  return{v:vl+(p.v0-vl)*e,y:p.y0+vl*t+(p.v0-vl)*(1-e)/p.b};
+}
+function step(met,s,h,f){
+  const k1=f(s);
+  if(met==='euler')return[s[0]+h*k1[0],s[1]+h*k1[1]];
+  if(met==='heun'){const k2=f([s[0]+h*k1[0],s[1]+h*k1[1]]);return[s[0]+h/2*(k1[0]+k2[0]),s[1]+h/2*(k1[1]+k2[1])];}
+  const k2=f([s[0]+h/2*k1[0],s[1]+h/2*k1[1]]),k3=f([s[0]+h/2*k2[0],s[1]+h/2*k2[1]]),k4=f([s[0]+h*k3[0],s[1]+h*k3[1]]);
+  return[0,1].map(i=>s[i]+h/6*(k1[i]+2*k2[i]+2*k3[i]+k4[i]));
+}
+function integrate(met,p,h,tEnd){
+  const f=s=>[p.a-p.b*s[0],s[0]];
+  let t=0,s=[p.v0,p.y0];const o={t:[0],v:[s[0]],y:[s[1]]};
+  while(t<tEnd-1e-10){const hh=Math.min(h,tEnd-t);s=step(met,s,hh,f);t+=hh;o.t.push(t);o.v.push(s[0]);o.y.push(s[1]);}
+  return o;
+}
+function endErr(met,p,h,tEnd){
+  const r=integrate(met,p,h,tEnd),n=r.t.length-1,ex=exact(tEnd,p);
+  return{v:r.v[n],y:r.y[n],ev:Math.abs(r.v[n]-ex.v),ey:Math.abs(r.y[n]-ex.y)};
+}
+
+function run(){
+  const p=getP(),w=$('warn');
+  if(p.err){w.style.display='block';w.textContent=p.err;return;}
+  w.style.display='none';
+  if(p.a<=0&&p.v0<=0&&p.y0<=0){w.style.display='block';w.textContent='Con estos valores el empuje no supera el peso (T ≤ m·g): el cohete no despega y la altura se vuelve negativa. Aumenta T o reduce m.';}
+  P=p;
+  const mets=['euler'];if($('mh').checked)mets.push('heun');if($('mr').checked)mets.push('rk4');
+  R={mets,runs:{}};mets.forEach(m=>R.runs[m]=integrate(m,p,p.h,p.tf));
+  anim.t=0;anim.on=false;$('play').textContent='Lanzar';
+  renderModel();renderTable();renderSteps();renderAnswers();renderCharts();drawRocket();
+}
+
+function renderModel(){
+  const p=P;
+  let s;
+  if(p.b===0)s=`v(t) = v₀ + a·t = ${fmt(p.v0,2)} + ${fmt(p.a,4)}·t &nbsp; (sin resistencia, a = T/m − g = ${fmt(p.a,4)} m/s²)`;
+  else s=`<i>v</i>(<i>t</i>) = <i>a/b</i> + (<i>v₀</i> − <i>a/b</i>)·e<sup>−<i>b t</i></sup> &nbsp;&nbsp; <i>y</i>(<i>t</i>) = <i>y₀</i> + (<i>a/b</i>)·<i>t</i> + (<i>v₀</i> − <i>a/b</i>)·(1 − e<sup>−<i>b t</i></sup>)/<i>b</i><br><span style="font-size:.9rem;color:#5a6a80">a = T/m − g = ${fmt(p.a,4)} m/s² · b = k/m = ${fmt(p.b,4)} 1/s · velocidad límite a/b = ${fmt(p.a/p.b,4)} m/s</span>`;
+  $('eqSol').innerHTML=s;
+  $('eqSol').style.whiteSpace='normal';
+}
+
+function renderTable(){
+  const p=P,e=R.runs.euler,ex=e.t.map(t=>exact(t,p));
+  let h='<thead><tr><th rowspan="2">t (s)</th><th colspan="4" class="grp">Velocidad (m/s)</th><th colspan="4" class="grp">Altura (m)</th>';
+  R.mets.slice(1).forEach(m=>h+=`<th colspan="4" class="grp">${NAME[m]}</th>`);
+  h+='</tr><tr><th>Exacta</th><th>Euler</th><th>Error</th><th>Error %</th><th>Exacta</th><th>Euler</th><th>Error</th><th>Error %</th>';
+  R.mets.slice(1).forEach(()=>h+='<th>v</th><th>Error v</th><th>y</th><th>Error y</th>');
+  h+='</tr></thead><tbody>';
+  e.t.forEach((t,i)=>{
+    const dv=Math.abs(e.v[i]-ex[i].v),dy=Math.abs(e.y[i]-ex[i].y);
+    const pv=ex[i].v!==0?dv/Math.abs(ex[i].v)*100:0,py=ex[i].y!==0?dy/Math.abs(ex[i].y)*100:0;
+    h+=`<tr><td>${fmt(t,2)}</td><td>${fmt(ex[i].v)}</td><td>${fmt(e.v[i])}</td><td>${fe(dv)}</td><td>${fmt(pv,2)}</td><td>${fmt(ex[i].y)}</td><td>${fmt(e.y[i])}</td><td>${fe(dy)}</td><td>${fmt(py,2)}</td>`;
+    R.mets.slice(1).forEach(m=>{const r=R.runs[m];h+=`<td>${fmt(r.v[i])}</td><td>${fe(Math.abs(r.v[i]-ex[i].v))}</td><td>${fmt(r.y[i])}</td><td>${fe(Math.abs(r.y[i]-ex[i].y))}</td>`;});
+    h+='</tr>';
+  });
+  $('tab').innerHTML=h+'</tbody>';
+}
+
+let SS=[];
+function renderSteps(){
+  const p=P;let hs=[2,1,0.5,0.25];if(!hs.includes(p.h))hs.push(p.h);
+  hs=hs.filter(x=>x<=p.tf).sort((a,b)=>b-a);
+  SS=hs.map(h=>({h,eu:endErr('euler',p,h,p.tf),he:endErr('heun',p,h,p.tf),rk:endErr('rk4',p,h,p.tf)}));
+  let t='<thead><tr><th rowspan="2">h (s)</th><th colspan="4" class="grp">Euler</th><th colspan="2" class="grp">Heun</th><th colspan="2" class="grp">RK4</th></tr><tr><th>v(tf)</th><th>Error v</th><th>y(tf)</th><th>Error y</th><th>Error v</th><th>Error y</th><th>Error v</th><th>Error y</th></tr></thead><tbody>';
+  SS.forEach(r=>t+=`<tr><td>${fmt(r.h,2)}</td><td>${fmt(r.eu.v)}</td><td>${fe(r.eu.ev)}</td><td>${fmt(r.eu.y)}</td><td>${fe(r.eu.ey)}</td><td>${fe(r.he.ev)}</td><td>${fe(r.he.ey)}</td><td>${fe(r.rk.ev)}</td><td>${fe(r.rk.ey)}</td></tr>`);
+  $('steps').innerHTML=t+'</tbody>';
+  const cur=SS.find(r=>r.h===p.h),i=SS.findIndex(r=>r.h===1),j=SS.findIndex(r=>r.h===0.5);
+  let s=`<b>¿Cuál es el más preciso?</b> Con el mismo paso h = ${fmt(p.h,2)} s, los errores en la velocidad final son: Euler ${fe(cur.eu.ev)}, Heun ${fe(cur.he.ev)} y RK4 ${fe(cur.rk.ev)} m/s. `;
+  s+='RK4 es el más preciso porque su error local es del orden de h⁵ (error global h⁴), frente a h³ de Heun (global h²) y h² de Euler (global h). ';
+  if(i>=0&&j>=0&&SS[j].eu.ev>0){s+=`Al pasar de h = 1 a h = 0,5, el error de Euler se reduce ${fmt(SS[i].eu.ev/SS[j].eu.ev,2)} veces (≈ 2, orden 1), el de Heun ${fmt(SS[i].he.ev/SS[j].he.ev,2)} veces (≈ 4, orden 2) y el de RK4 ${fmt(SS[i].rk.ev/SS[j].rk.ev,1)} veces (≈ 16, orden 4). `;}
+  s+='RK4 evalúa la derivada cuatro veces por paso, pero a igual precisión permite pasos mucho mayores.';
+  $('just').innerHTML=s;
+}
+
+function renderAnswers(){
+  const p=P,e=R.runs.euler;
+  const times=[2,4,10,20].filter(x=>x<=p.tf+1e-9);
+  let q1=`<table><thead><tr><th>t (s)</th><th>v exacta (m/s)</th><th>v Euler, h = ${fmt(p.h,2)} (m/s)</th><th>Error (m/s)</th></tr></thead><tbody>`;
+  times.forEach(t=>{const r=endErr('euler',p,p.h,t),ex=exact(t,p);q1+=`<tr><td>${t}</td><td>${fmt(ex.v)}</td><td>${fmt(r.v)}</td><td>${fe(r.ev)}</td></tr>`;});
+  q1+='</tbody></table>';
+  const n=e.t.length-1,ex=exact(p.tf,p),ev=Math.abs(e.v[n]-ex.v),ey=Math.abs(e.y[n]-ex.y);
+  const sh=[1,0.5].map(h=>({h,r:endErr('euler',p,h,p.tf)}));
+  let q5=`<p>Al reducir el paso, Euler se acerca a la solución exacta (v(${fmt(p.tf,0)}) = ${fmt(ex.v)} m/s; y = ${fmt(ex.y)} m):</p><div class="tw"><table><thead><tr><th>h (s)</th><th>v Euler</th><th>Error v</th><th>y Euler</th><th>Error y</th></tr></thead><tbody>`;
+  [{h:p.h,r:endErr('euler',p,p.h,p.tf)}].concat(sh).forEach(o=>q5+=`<tr><td>${fmt(o.h,2)}</td><td>${fmt(o.r.v)}</td><td>${fe(o.r.ev)}</td><td>${fmt(o.r.y)}</td><td>${fe(o.r.ey)}</td></tr>`);
+  q5+='</tbody></table></div><p>El error es aproximadamente proporcional a h: cada vez que el paso se reduce a la mitad, el error también se reduce a la mitad.</p>';
+  const form=p.b===0?`v(t) = ${fmt(p.v0,2)} + ${fmt(p.a,4)}·t,&nbsp; y(t) = ${fmt(p.y0,2)} + ${fmt(p.v0,2)}·t + ${fmt(p.a/2,4)}·t²`
+   :`v(t) = ${fmt(p.a/p.b,4)}·(1 − e<sup>−${fmt(p.b,4)}·t</sup>)${p.v0?` + ${fmt(p.v0,2)}·e<sup>−${fmt(p.b,4)}·t</sup>`:''}`;
+  $('answers').innerHTML=`
+  <h3>1. Velocidad después de 2, 4, 10 y 20 segundos</h3>${q1}
+  <h3>2. Altura después de ${fmt(p.tf,0)} segundos</h3>
+  <p>La solución exacta da <b>${fmt(ex.y)} m</b>. Euler con h = ${fmt(p.h,2)} s da <b>${fmt(e.y[n])} m</b>.</p>
+  <h3>3. Solución analítica de la ecuación diferencial</h3>
+  <p>Se resuelve v′ + b·v = a, una ecuación lineal de primer orden. Con factor integrante e<sup>b t</sup> resulta v(t) = a/b + (v₀ − a/b)·e<sup>−b t</sup>. Al integrar v(t) se obtiene la altura:</p>
+  <div class="eq" style="white-space:normal">${form}<br>${p.b===0?'':`y(t) = ${fmt(p.y0,2)} + ${fmt(p.a/p.b,4)}·t − ${fmt((p.a/p.b-p.v0)/p.b,4)}·(1 − e<sup>−${fmt(p.b,4)}·t</sup>)`}</div>
+  <h3>4. Diferencias entre Euler y la solución exacta</h3>
+  <p>En t = ${fmt(p.tf,0)} s, con h = ${fmt(p.h,2)} s, Euler tiene un error de <b>${fe(ev)} m/s</b> en la velocidad (${fmt(ex.v?ev/Math.abs(ex.v)*100:0,2)} %) y de <b>${fe(ey)} m</b> en la altura (${fmt(ex.y?ey/Math.abs(ex.y)*100:0,2)} %). ${e.v[n]>ex.v?'Euler sobrestima la velocidad':'Euler subestima la velocidad'} y ${e.y[n]>ex.y?'sobrestima':'subestima'} la altura: la derivada se evalúa siempre al inicio del intervalo, donde la velocidad es menor y la aceleración mayor, y esa diferencia se acumula paso a paso.</p>
+  <h3>5. ¿Qué ocurre si reducimos el paso a 1 s o 0,5 s?</h3>${q5}`;
+}
+
+/* ---------- gráficas ---------- */
+function niceStep(r,n){const raw=r/n,pw=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/pw;return(f<1.5?1:f<3?2:f<7?5:10)*pw;}
+function chart(cv,series,xl,yl,title){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;
+  const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
+  const L=62,Rm=14,T=30,B=44;let xmax=0,ymin=0,ymax=-Infinity;
+  series.forEach(s=>{s.xs.forEach(x=>xmax=Math.max(xmax,x));s.ys.forEach(y=>{ymin=Math.min(ymin,y);ymax=Math.max(ymax,y);});});
+  if(ymax<=ymin)ymax=ymin+1;
+  const sy=niceStep(ymax-ymin,5),sx=niceStep(xmax,6);ymax=Math.ceil(ymax/sy)*sy;ymin=Math.floor(ymin/sy)*sy;
+  const X=x=>L+x/xmax*(W-L-Rm),Y=y=>H-B-(y-ymin)/(ymax-ymin)*(H-B-T);
+  c.font='12px system-ui';c.fillStyle='#14233b';c.textAlign='left';c.font='bold 13px Georgia';c.fillText(title,L,18);c.font='12px system-ui';
+  c.strokeStyle='#dde5ec';c.lineWidth=1;c.fillStyle='#5a6a80';
+  c.textAlign='right';for(let y=ymin;y<=ymax+1e-9;y+=sy){c.beginPath();c.moveTo(L,Y(y));c.lineTo(W-Rm,Y(y));c.stroke();c.fillText(sy<1?fmt(y,2):fmt(y,0),L-6,Y(y)+4);}
+  c.textAlign='center';for(let x=0;x<=xmax+1e-9;x+=sx){c.beginPath();c.moveTo(X(x),T);c.lineTo(X(x),H-B);c.stroke();c.fillText(fmt(x,sx<1?1:0),X(x),H-B+16);}
+  c.strokeStyle='#14233b';c.beginPath();c.moveTo(L,T);c.lineTo(L,H-B);c.lineTo(W-Rm,H-B);c.stroke();
+  c.fillStyle='#14233b';c.fillText(xl,(L+W-Rm)/2,H-8);
+  c.save();c.translate(14,(T+H-B)/2);c.rotate(-Math.PI/2);c.fillText(yl,0,0);c.restore();
+  series.forEach(s=>{c.strokeStyle=s.color;c.fillStyle=s.color;c.lineWidth=s.w||2;c.beginPath();
+    s.xs.forEach((x,i)=>i?c.lineTo(X(x),Y(s.ys[i])):c.moveTo(X(x),Y(s.ys[i])));c.stroke();
+    if(s.dots&&s.xs.length<=60)s.xs.forEach((x,i)=>{c.beginPath();c.arc(X(x),Y(s.ys[i]),3,0,7);c.fill();});});
+  c.textAlign='left';let ly=T+10;
+  series.forEach(s=>{c.fillStyle=s.color;c.fillRect(L+10,ly-8,14,4);c.fillStyle='#14233b';c.fillText(s.name,L+30,ly-2);ly+=15;});
+}
+function renderCharts(){
+  const p=P,N=200,ts=[...Array(N+1)].map((_,i)=>p.tf*i/N),ex=ts.map(t=>exact(t,p));
+  const mk=(key)=>{const s=[{name:'Exacta',color:COL.exact,xs:ts,ys:ex.map(o=>o[key]),w:2.5}];
+    R.mets.forEach(m=>{const r=R.runs[m];s.push({name:NAME[m],color:COL[m],xs:r.t,ys:r[key],dots:m==='euler',w:1.8});});return s;};
+  const err=[];R.mets.forEach(m=>{const r=R.runs[m];err.push({name:NAME[m],color:COL[m],xs:r.t,ys:r.t.map((t,i)=>Math.abs(r.v[i]-exact(t,p).v)),dots:m==='euler',w:1.8});});
+  redraw=[()=>chart($('c1'),mk('v'),'Tiempo (s)','Velocidad (m/s)','Velocidad v(t)'),()=>chart($('c2'),mk('y'),'Tiempo (s)','Altura (m)','Altura y(t)'),()=>chart($('c3'),err,'Tiempo (s)','Error en v (m/s)','Error absoluto en la velocidad')];
+  redraw.forEach(f=>f());
+  $('legend').innerHTML=`<span class="lg" style="background:${COL.exact}"></span>Solución exacta &nbsp; `+R.mets.map(m=>`<span class="lg" style="background:${COL[m]}"></span>${NAME[m]}`).join(' &nbsp; ')+` &nbsp;(paso h = ${fmt(P.h,2)} s)`;
+}
+addEventListener('resize',()=>{redraw.forEach(f=>f());drawRocket();});
+
+/* ---------- animación ---------- */
+function interp(r,t,key){const i=r.t.findIndex(x=>x>=t);if(i<=0)return r[key][0];const f=(t-r.t[i-1])/(r.t[i]-r.t[i-1]);return r[key][i-1]+f*(r[key][i]-r[key][i-1]);}
+function drawRocket(){
+  if(!P)return;const cv=$('rk'),c=cv.getContext('2d'),W=cv.width,H=cv.height,t=anim.t;
+  const ex=exact(t,P),ye=interp(R.runs.euler,t,'y'),ve=interp(R.runs.euler,t,'v');
+  const ymax=Math.max(exact(P.tf,P).y,R.runs.euler.y[R.runs.euler.y.length-1],1),gy=H-34,sc=(gy-100)/ymax;
+  c.clearRect(0,0,W,H);
+  const g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,'#cfe0ee');g.addColorStop(1,'#f5f9fc');c.fillStyle=g;c.fillRect(0,0,W,H);
+  c.strokeStyle='#9fb3c4';c.fillStyle='#5a6a80';c.font='11px system-ui';c.textAlign='left';
+  const st=niceStep(ymax,5);for(let y=0;y<=ymax;y+=st){const py=gy-y*sc;c.beginPath();c.moveTo(0,py);c.lineTo(W,py);c.stroke();c.fillText(fmt(y,0)+' m',4,py-3);}
+  c.fillStyle='#4b5563';c.fillRect(0,gy,W,H-gy);
+  const py=gy-Math.max(ex.y,0)*sc,cx=W/2+20;
+  if(anim.on||t>0){c.fillStyle='#f5a623';c.beginPath();c.moveTo(cx-7,py);c.lineTo(cx+7,py);c.lineTo(cx,py+14+Math.random()*16);c.fill();}
+  c.fillStyle='#fff';c.strokeStyle='#14233b';c.lineWidth=2;c.beginPath();c.moveTo(cx,py-46);c.quadraticCurveTo(cx+14,py-22,cx+11,py);c.lineTo(cx-11,py);c.quadraticCurveTo(cx-14,py-22,cx,py-46);c.fill();c.stroke();
+  c.fillStyle='#0f6f86';c.beginPath();c.arc(cx,py-24,5,0,7);c.fill();
+  c.fillStyle='#b5179e';c.beginPath();c.arc(cx-45,gy-Math.max(ye,0)*sc-23,6,0,7);c.fill();c.fillStyle='#b5179e';c.fillText('Euler',cx-80,gy-Math.max(ye,0)*sc-20);
+  $('clock').textContent='t = '+fmt(t,2)+' s';$('hy').textContent=fmt(ex.y,2)+' m';$('hye').textContent=fmt(ye,2)+' m';$('hv').textContent=fmt(ex.v,2)+' m/s';$('hve').textContent=fmt(ve,2)+' m/s';
+}
+function tick(ts){if(!anim.on)return;const dt=(ts-anim.last)/1000;anim.last=ts;anim.t=Math.min(P.tf,anim.t+dt*P.tf/10);drawRocket();
+  if(anim.t>=P.tf){anim.on=false;$('play').textContent='Lanzar de nuevo';return;}requestAnimationFrame(tick);}
+$('play').onclick=()=>{if(!P)return;if(anim.on){anim.on=false;$('play').textContent='Continuar';return;}if(anim.t>=P.tf)anim.t=0;anim.on=true;anim.last=performance.now();$('play').textContent='Pausar';requestAnimationFrame(tick);};
+$('stop').onclick=()=>{anim.on=false;anim.t=0;$('play').textContent='Lanzar';drawRocket();};
+
+$('go').onclick=run;
+$('rs').onclick=()=>{const d={m:100,T:1500,k:10,g:9.81,v0:0,y0:0,tf:20,h:2};for(const i in d)$(i).value=d[i];run();};
+document.querySelectorAll('#f input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')run();}));
+run();
+</script>
+</body>
+</html>
